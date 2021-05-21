@@ -6,26 +6,45 @@ import { stripIndent, source } from 'common-tags'
 import { WHITESPACE } from '../constants'
 import type { SanitizedValues, Generator } from '../../../types'
 
-type Template9Generator = Generator & {
+type template10Generator = Generator & {
   resumeHeader: () => string
 }
 
-const generator: Template9Generator = {
+const generator: template10Generator = {
   profileSection(basics) {
     if (!basics) {
       return ''
     }
 
-    const { name, email, phone, location = {}, website } = basics
+    const { name, email, phone, location = {}, website, summaries } = basics
     const info = [email, phone, location.address, website]
       .filter(Boolean)
       .join(' | ')
+    let summarySection = ''
+    if (summaries) {
+      const lastSummaryIndex = summaries.length - 1
+      summarySection = source`
+          %%% Summary
+          %%% ------------------------------------------------------------
+    
+          \\NewPart{${'Summary'}}{}
+          ${summaries.map((summary, i) => {
+            return stripIndent`
+            \\ProfileSummaryEntry
+            {${summary}}
+            ${i < lastSummaryIndex ? '\\sepspace' : ''}
+          `
+          })}
+        `
+    }
 
-    return stripIndent`
+    return (
+      stripIndent`
       \\MyName{${name || ''}}
       \\bigskip
       {\\small \\hfill ${info || ''}}
-    `
+    ` + `{${summarySection || ''}}`
+    )
   },
 
   educationSection(education, heading) {
@@ -156,7 +175,7 @@ const generator: Template9Generator = {
       \\NewPart{${heading || 'Skills'}}{}
       ${skills.map(skill => {
         const { name, keywords = [] } = skill
-        return `\\SkillsEntry{${name || ''}}{${keywords.join(', ')}}`
+        return `\\SkillsEntry{${name || ''}}{${keywords.join(', ')}}\\sepspace`
       })}
     `
   },
@@ -219,11 +238,22 @@ const generator: Template9Generator = {
       \\usepackage{lmodern}
       \\usepackage[protrusion=true,expansion=true]{microtype}
       \\usepackage[svgnames]{xcolor}  % Colours by their 'svgnames'
-      \\usepackage[margin=0.75in]{geometry}
-        \\textheight=700px
+      \\usepackage{geometry}
       \\usepackage{url}
       \\usepackage{lmodern} % Allow arbitrary font sizes
       \\usepackage{textcomp}
+      \\usepackage{fancyhdr}
+      
+      \\pagestyle{fancy}
+      \\fancyhf{} % clear all header and footer fields
+      \\fancyfoot{}
+      \\renewcommand{\\headrulewidth}{0pt}
+      \\renewcommand{\\footrulewidth}{0pt}
+      
+      % Adjust margins
+      \\addtolength{\\oddsidemargin}{-0.375in}
+      \\addtolength{\\evensidemargin}{-0.375in}
+      \\geometry{left=.7in, top=.5in, right=.7in, bottom=.5in, footskip=.5cm} 
 
       %% Define a new 'modern' style for the url package that will use a smaller font.
       \\makeatletter
@@ -233,7 +263,6 @@ const generator: Template9Generator = {
       \\urlstyle{modern} %% And use the newly defined style.
 
       \\frenchspacing              % Better looking spacings after periods
-      \\pagestyle{empty}           % No pagenumbers/headers/footers
 
       \\renewcommand{\\familydefault}{\\sfdefault}
 
@@ -242,9 +271,10 @@ const generator: Template9Generator = {
       \\usepackage{sectsty}
 
       \\sectionfont{                 % Change font of \\section command
+        \\vspace*{-10pt}
         \\usefont{OT1}{phv}{b}{n}%   % bch-b-n: CharterBT-Bold font
         \\sectionrule{0pt}{0pt}{-5pt}{3pt}}
-
+      
       %%% Macros
       %%% ------------------------------------------------------------
       \\newlength{\\spacebox}
@@ -260,7 +290,11 @@ const generator: Template9Generator = {
           \\par \\normalsize \\normalfont}
 
       \\newcommand{\\NewPart}[1]{\\section*{\\uppercase{#1}}}
-
+        
+      \\newcommand{\\ProfileSummaryEntry}[1]{         % Similar to \\EducationEntry
+          \\vspace*{-5pt}
+          \\noindent \\small #1 \\par}
+            
       \\newcommand{\\PersonalEntry}[2]{
           \\noindent\\hangindent=2em\\hangafter=0 % Indentation
           \\parbox{\\spacebox}{                  % Box to align text
@@ -268,41 +302,47 @@ const generator: Template9Generator = {
           \\hspace{1.5em} #2 \\par}              % Entry value
 
       \\newcommand{\\SkillsEntry}[2]{                % Same as \\PersonalEntry
-          \\noindent\\hangindent=2em\\hangafter=0 % Indentation
+          \\vspace*{-5pt}
+          \\noindent\\hangindent=0em\\hangafter=0 % Indentation
           \\parbox{\\spacebox}{                  % Box to align text
           \\textit{#1}}                    % Entry name (birth, address, etc.)
           \\hspace{1.5em} #2 \\par}              % Entry value
 
       \\newcommand{\\AwardsEntry}[2]{                % Same as \\PersonalEntry
+          \\vspace*{-5pt}
           \\noindent\\hangindent=2em\\hangafter=0 % Indentation
           \\parbox{\\spacebox}{                  % Box to align text
           \\textit{#1}}                    % Entry name (birth, address, etc.)
           \\hspace{1.5em} #2 \\par}              % Entry value
 
       \\newcommand{\\EducationEntry}[4]{
+          \\vspace*{-5pt}
           \\noindent \\textbf{#1} \\hfill      % Study
-          \\colorbox{Black}{
+          \\colorbox{White}{
             \\parbox{8.5em}{
-            \\hfill\\color{White}#2}} \\par  % Duration
+            \\hfill\\color{Black}#2}} \\par  % Duration
           \\noindent \\textit{#3} \\par        % School
           \\noindent\\hangindent=2em\\hangafter=0 \\small #4 % Description
           \\normalsize \\par}
 
       \\newcommand{\\WorkEntry}[4]{       % Same as \\EducationEntry
+          \\vspace*{-5pt}
           \\noindent \\textbf{#1} \\hfill      % Jobname
-          \\colorbox{Black}{%
+          \\colorbox{White}{%
             \\parbox{9em}{%
-            \\hfill\\color{White}#2}} \\par   % Duration
+            \\hfill\\color{Black}#2}} \\par   % Duration
               \\noindent \\textit{#3} \\par        % Company
           \\noindent\\hangindent=2em\\hangafter=0 \\small #4 % Description
           \\normalsize \\par}
 
       \\newcommand{\\ProjectEntry}[4]{         % Similar to \\EducationEntry
+          \\vspace*{-5pt}  
           \\noindent \\textbf{#1} \\noindent \\textit{#3} \\hfill {#2} \\par
           \\noindent \\small #4 % Description
           \\normalsize \\par}
 
       \\newcommand{\\AwardEntry}[4]{         % Similar to \\EducationEntry
+          \\vspace*{-5pt}
           \\noindent \\textbf{#1} \\noindent \\textit{#3} \\hfill {#2} \\par
           \\noindent \\small #4 % Description
           \\normalsize \\par}
@@ -310,7 +350,7 @@ const generator: Template9Generator = {
   }
 }
 
-function template9(values: SanitizedValues) {
+function template10(values: SanitizedValues) {
   const { headings = {} } = values
 
   return stripIndent`
@@ -351,4 +391,4 @@ function template9(values: SanitizedValues) {
   `
 }
 
-export default template9
+export default template10
